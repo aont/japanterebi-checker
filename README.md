@@ -1,6 +1,6 @@
 # TV Schedule Checker
 
-TV Schedule Checker monitors an XMLTV guide for schedule changes that can affect recurring TV recordings. It compares the configured recording times in `recordings.json` with the current XMLTV programme start times and can notify a Slack channel when a programme moves, disappears, or recovers to its registered time.
+TV Schedule Checker monitors an XMLTV guide for schedule changes that can affect recurring TV recordings. It compares the configured recording times in `recordings.toml` with the current XMLTV programme start times and can notify a Slack channel when a programme moves, disappears, or recovers to its registered time.
 
 The default guide source is the Japanterebi XMLTV feed:
 
@@ -17,7 +17,7 @@ https://animenosekai.github.io/japanterebi-xmltv/guide.xml
 - Optionally reports missing programmes and recovered schedules.
 - Stores notification state to avoid sending duplicate alerts.
 - Caches `guide.xml` locally and can fall back to the cache if the guide fetch fails.
-- Searches `guide.xml` by programme title to help build `recordings.json` entries.
+- Searches `guide.xml` by programme title to help build `recordings.toml` entries.
 - Supports dry runs for local testing without Slack.
 
 ## Requirements
@@ -40,32 +40,29 @@ pip install -r requirements.txt
 Copy the example configuration and edit it for your recordings:
 
 ```bash
-cp recordings.example.json recordings.json
+cp recordings.example.toml recordings.toml
 ```
 
 A configuration file contains global settings and a `recordings` array:
 
-```json
-{
-  "guide_url": "https://animenosekai.github.io/japanterebi-xmltv/guide.xml",
-  "timezone": "Asia/Tokyo",
-  "lookahead_days": 14,
-  "matching_window_hours": 12,
-  "shift_threshold_minutes": 0,
-  "notify_missing": false,
-  "notify_recovery": true,
-  "recordings": [
-    {
-      "id": "weekly-friday-example",
-      "title": "Example Weekly Anime",
-      "title_match": "contains",
-      "channel": "TokyoMX.jp",
-      "recurrence": "weekly",
-      "weekday": "fri",
-      "time": "23:30"
-    }
-  ]
-}
+```toml
+guide_url = "https://animenosekai.github.io/japanterebi-xmltv/guide.xml"
+timezone = "Asia/Tokyo"
+lookahead_days = 14
+matching_window_hours = 12
+shift_threshold_minutes = 0
+notify_missing = false
+notify_recovery = true
+SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/..."
+
+[[recordings]]
+id = "weekly-friday-example"
+title = "Example Weekly Anime"
+title_match = "contains"
+channel = "TokyoMX.jp"
+recurrence = "weekly"
+weekday = "fri"
+time = "23:30"
 ```
 
 ### Global options
@@ -83,6 +80,7 @@ A configuration file contains global settings and a `recordings` array:
 | `guide_cache` | `guide.xml` | Local path where the downloaded XMLTV guide is cached. Set to an empty string to disable caching. |
 | `guide_cache_max_age_seconds` | `21600` | How long to reuse a cached guide before trying to download a fresh copy. If a fresh download fails, an existing cache is used as a fallback. |
 | `state_retention_days` | `30` | Number of days to keep notification state entries. |
+| `SLACK_WEBHOOK_URL` | None | Slack incoming webhook URL used when not running with `--dry-run`. |
 
 ### Recording rule options
 
@@ -106,34 +104,33 @@ A configuration file contains global settings and a `recordings` array:
 Run a local dry run to print any Slack message that would be sent:
 
 ```bash
-python xmltv_shift_monitor.py --config recordings.json --state state.json --dry-run
+python xmltv_shift_monitor.py --config recordings.toml --state state.json --dry-run
 ```
 
 Run normally and send alerts to Slack:
 
 ```bash
-export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..."
-python xmltv_shift_monitor.py --config recordings.json --state state.json
+python xmltv_shift_monitor.py --config recordings.toml --state state.json
 ```
 
 When not using `--dry-run`, the script updates the state file after each run. Keep the state file between scheduled runs so duplicate alerts are suppressed.
 
 ### Local guide cache
 
-By default, the checker stores the downloaded XMLTV document at `guide.xml` and reuses it for six hours. You can override those settings in `recordings.json` with `guide_cache` and `guide_cache_max_age_seconds`, or from the command line:
+By default, the checker stores the downloaded XMLTV document at `guide.xml` and reuses it for six hours. You can override those settings in `recordings.toml` with `guide_cache` and `guide_cache_max_age_seconds`, or from the command line:
 
 ```bash
-python xmltv_shift_monitor.py --config recordings.json --guide-cache cache/guide.xml --guide-cache-max-age-seconds 3600 --dry-run
+python xmltv_shift_monitor.py --config recordings.toml --guide-cache cache/guide.xml --guide-cache-max-age-seconds 3600 --dry-run
 ```
 
 Use `--refresh-guide` to force a download even when the cache is still fresh. If a download fails and a local cache exists, the checker uses the cached copy.
 
 ### Search the guide
 
-Use `--search-title` to find programmes in `guide.xml` and print the channel, start time, stop time, categories, description, and a helper line with the fields commonly needed for a `recordings.json` rule:
+Use `--search-title` to find programmes in `guide.xml` and print the channel, start time, stop time, categories, description, and a helper line with the fields commonly needed for a `recordings.toml` rule:
 
 ```bash
-python xmltv_shift_monitor.py --config recordings.json --search-title "Example Weekly Anime"
+python xmltv_shift_monitor.py --config recordings.toml --search-title "Example Weekly Anime"
 ```
 
 The search defaults to substring matching. Use `--search-title-match exact` or `--search-title-match regex` to change the matching mode, and `--search-limit` to control how many results are printed.
@@ -143,10 +140,10 @@ The search defaults to substring matching. Use `--search-title-match exact` or `
 You can run the checker from cron, systemd timers, GitHub Actions, or another scheduler. For example, a cron entry that checks every hour might look like this:
 
 ```cron
-0 * * * * cd /path/to/tvschedule-checker && . .venv/bin/activate && python xmltv_shift_monitor.py --config recordings.json --state state.json
+0 * * * * cd /path/to/tvschedule-checker && . .venv/bin/activate && python xmltv_shift_monitor.py --config recordings.toml --state state.json
 ```
 
-Make sure the scheduler provides `SLACK_WEBHOOK_URL` when Slack notifications are enabled.
+Make sure `SLACK_WEBHOOK_URL` is set in `recordings.toml` when Slack notifications are enabled.
 
 ## Alert behavior
 
@@ -160,5 +157,5 @@ For each configured occurrence in the lookahead window, the checker finds the ne
 ## Repository files
 
 - `xmltv_shift_monitor.py` — command-line checker implementation.
-- `recordings.example.json` — example recording configuration.
+- `recordings.example.toml` — example recording configuration.
 - `requirements.txt` — Python runtime dependencies.

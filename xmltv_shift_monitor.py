@@ -5,9 +5,9 @@ import argparse
 import asyncio
 import copy
 import json
-import os
 import re
 import sys
+import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
@@ -73,6 +73,13 @@ def load_json(path: Path, default: Any) -> Any:
         return default
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def load_toml(path: Path, default: Any) -> Any:
+    if not path.exists():
+        return default
+    with path.open("rb") as f:
+        return tomllib.load(f)
 
 
 def save_json_atomic(path: Path, data: Any) -> None:
@@ -475,7 +482,7 @@ def format_program_search_results(programs: list[Program], tz: ZoneInfo, limit: 
                 f"  channel: {program.channel}",
                 f"  start: {fmt_dt(local_start)}",
                 f"  stop: {fmt_dt(local_stop) if local_stop else 'unknown'}",
-                f"  recordings.json helper: title={json.dumps(program.title, ensure_ascii=False)}, "
+                f"  recordings.toml helper: title={json.dumps(program.title, ensure_ascii=False)}, "
                 f"channel={json.dumps(program.channel, ensure_ascii=False)}, "
                 f"weekday={local_start.strftime('%a').lower()}, time={local_start.strftime('%H:%M')}",
             ]
@@ -586,7 +593,7 @@ async def run(args: argparse.Namespace) -> int:
     config_path = Path(args.config)
     state_path = Path(args.state)
 
-    config = load_json(config_path, {})
+    config = load_toml(config_path, {})
     tz = ZoneInfo(str(config.get("timezone", "Asia/Tokyo")))
     guide_url = str(config.get("guide_url", DEFAULT_GUIDE_URL))
     now = datetime.now(tz)
@@ -629,9 +636,10 @@ async def run(args: argparse.Namespace) -> int:
             if args.dry_run:
                 print(text)
             else:
-                webhook_url = os.environ.get("SLACK_WEBHOOK_URL")
+                webhook_url = config.get("SLACK_WEBHOOK_URL")
                 if not webhook_url:
-                    raise RuntimeError("SLACK_WEBHOOK_URL is not set; use --dry-run to test locally")
+                    raise RuntimeError("SLACK_WEBHOOK_URL is not set in the TOML config; use --dry-run to test locally")
+                webhook_url = str(webhook_url)
                 await send_slack(session, webhook_url, text)
                 save_json_atomic(state_path, new_state)
 
@@ -649,7 +657,7 @@ async def run(args: argparse.Namespace) -> int:
 
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Detect XMLTV recording start-time shifts.")
-    parser.add_argument("--config", default="recordings.json", help="recording schedule JSON")
+    parser.add_argument("--config", default="recordings.toml", help="recording schedule TOML")
     parser.add_argument("--state", default="state.json", help="notification state JSON")
     parser.add_argument("--dry-run", action="store_true", help="print Slack message instead of sending")
     parser.add_argument("--guide-cache", default=None, help="local guide.xml cache path; set config guide_cache to empty to disable")
