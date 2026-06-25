@@ -1,6 +1,6 @@
-# Japanterebi Checker
+# TV Schedule Checker
 
-Japanterebi Checker monitors an XMLTV guide for schedule changes that can affect recurring TV recordings. It compares the configured recording times in `recordings.json` with the current XMLTV programme start times and can notify a Slack channel when a programme moves, disappears, or recovers to its registered time.
+TV Schedule Checker monitors an XMLTV guide for schedule changes that can affect recurring TV recordings. It compares the configured recording times in `recordings.json` with the current XMLTV programme start times and can notify a Slack channel when a programme moves, disappears, or recovers to its registered time.
 
 The default guide source is the Japanterebi XMLTV feed:
 
@@ -143,7 +143,7 @@ The search defaults to substring matching. Use `--search-title-match exact` or `
 You can run the checker from cron, systemd timers, GitHub Actions, or another scheduler. For example, a cron entry that checks every hour might look like this:
 
 ```cron
-0 * * * * cd /path/to/japanterebi-checker && . .venv/bin/activate && python xmltv_shift_monitor.py --config recordings.json --state state.json
+0 * * * * cd /path/to/tvschedule-checker && . .venv/bin/activate && python xmltv_shift_monitor.py --config recordings.json --state state.json
 ```
 
 Make sure the scheduler provides `SLACK_WEBHOOK_URL` when Slack notifications are enabled.
